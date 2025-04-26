@@ -73,10 +73,15 @@ function _count_unionall_parameters(TypeObj::UnionAll)
 end
 _count_type_expr_params(s::Symbol) = 0
 function _count_type_expr_params(expr::Expr)
-    if expr.head !== :curly
-        return 0
+    count = 0
+    while expr.head === :where
+        count += length(expr.args) - 1
+        expr = expr.args[1]
     end
-    return length(expr.args) - 1
+    if expr.head == :curly
+        count += length(expr.args) - 1
+    end
+    return count
 end
 
 

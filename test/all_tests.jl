@@ -68,12 +68,12 @@
         :x,
     )
     # where-clause on the field
-    @test_broken field_is_fully_specified(
+    @test field_is_fully_specified(
         @__MODULE__,
         :(struct S{T1} x::Dict{T1, T2} where {T2<:Int} end),
         :x,
     )
-    @test_broken field_is_fully_specified(
+    @test field_is_fully_specified(
         @__MODULE__,
         :(struct S{T1} x::Dict{T1,T2} where T2 end),
         :x,
