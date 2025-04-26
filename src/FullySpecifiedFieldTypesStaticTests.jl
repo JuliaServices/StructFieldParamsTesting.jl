@@ -84,6 +84,8 @@ function check_unionall_expr_is_fully_specified(mod::Module, TypeObj::UnionAll, 
     num_params = _count_type_expr_params(expr)
     dump(expr)
     @show num_type_args, num_params
+    # "Less than or equal to" in order to support literal values in the type expression.
+    # E.g.: The UnionAll `Array{<:Int, 1}` has 1 type arg but 2 params in the expression.
     return num_type_args <= num_params
 end
 function _count_unionall_parameters(TypeObj::UnionAll)
@@ -92,8 +94,6 @@ function _count_unionall_parameters(TypeObj::UnionAll)
         count += 1
         TypeObj = TypeObj.body
     end
-    # @assert typeof(TypeObj) === DataType
-    # count += length(TypeObj.parameters)
     return count
 end
 function _count_type_expr_params(expr::Expr)
