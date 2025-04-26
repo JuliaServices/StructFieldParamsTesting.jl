@@ -1,10 +1,26 @@
 
 @testitem "FullySpecifiedFieldTypesStaticTests.jl" begin
 
-    test_field_fully_specified(
+    # Concrete DataType
+    @test field_is_fully_specified(
+        @__MODULE__,
+        :(struct S x::Vector{Int} end),
+        :x,
+    )
+    # Fully specified field type (DataType)
+    @test field_is_fully_specified(
         @__MODULE__,
         :(struct S{T<:Int} x::Vector{T} end),
         :x,
     )
+
+    # # Fully specified field type
+    # @test field_is_fully_specified(
+    #     @__MODULE__,
+    #     :(struct S
+    #         x::Vector{<:Int}
+    #     end),
+    #     :x,
+    # )
 
 end
