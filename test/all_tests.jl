@@ -17,9 +17,17 @@
     # Fully specified UnionAll field type
     @test field_is_fully_specified(
         @__MODULE__,
-        :(struct S
-            x::Vector{<:Int}
-        end),
+        :(struct S x::Vector{<:Int} end),
+        :x,
+    )
+    @test field_is_fully_specified(
+        @__MODULE__,
+        :(struct S x::Array{<:Int, 1} end),
+        :x,
+    )
+    @test field_is_fully_specified(
+        @__MODULE__,
+        :(struct S x::Array{Int, 1} end),
         :x,
     )
 
