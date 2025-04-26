@@ -1,6 +1,3 @@
-using FullySpecifiedFieldTypesStaticTests
-using Test
+using ReTestItems
 
-@testset "FullySpecifiedFieldTypesStaticTests.jl" begin
-    # Write your tests here.
-end
+ReTestItems.runtests("test")
