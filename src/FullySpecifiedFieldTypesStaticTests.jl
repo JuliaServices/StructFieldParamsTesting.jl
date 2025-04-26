@@ -48,7 +48,7 @@ function _make_typevar(mod, Texpr)
 end
 
 function check_field_type_fully_specified(mod::Module, typevars, field_type_expr)
-    dump(typevars)
+    # dump(typevars)
     # NOTE: Julia doesn't seem to produce the right type if you use a concrete typevar.
     # Example:
     # let T = TypeVar(:T, Union{}, Int)
@@ -65,19 +65,41 @@ function check_field_type_fully_specified(mod::Module, typevars, field_type_expr
             $(field_type_expr)
         end
     end)
-    @show TypeObj
+    # @show TypeObj
     # @test TypeObj isa Type
     @assert TypeObj isa Type
 
     if isconcretetype(TypeObj)
         # The type is concrete, so it is fully specified.
-        @info "Type is concrete: $(TypeObj)"
+        # @info "Type is concrete: $(TypeObj)"
         return true
     end
     @assert typeof(TypeObj) === UnionAll "$(TypeObj) is not a UnionAll. Got $(typeof(TypeObj))."
 
-
-
+    return check_unionall_expr_is_fully_specified(mod, TypeObj, field_type_expr)
 end
 
+function check_unionall_expr_is_fully_specified(mod::Module, TypeObj::UnionAll, expr::Expr)
+    num_type_args = _count_unionall_parameters(TypeObj)
+    num_params = _count_type_expr_params(expr)
+    # dump(expr)
+    # @show num_type_args, num_params
+    return num_type_args == num_params
 end
+function _count_unionall_parameters(TypeObj::UnionAll)
+    count = 0
+    while typeof(TypeObj) === UnionAll
+        count += 1
+        TypeObj = TypeObj.body
+    end
+    return count
+end
+function _count_type_expr_params(expr::Expr)
+    if expr.head !== :curly
+        return 0
+    end
+    return length(expr.args) - 1
+end
+
+
+end  # module FullySpecifiedFieldTypesStaticTests

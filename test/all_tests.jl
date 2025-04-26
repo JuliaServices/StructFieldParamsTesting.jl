@@ -14,13 +14,13 @@
         :x,
     )
 
-    # # Fully specified field type
-    # @test field_is_fully_specified(
-    #     @__MODULE__,
-    #     :(struct S
-    #         x::Vector{<:Int}
-    #     end),
-    #     :x,
-    # )
+    # Fully specified UnionAll field type
+    @test field_is_fully_specified(
+        @__MODULE__,
+        :(struct S
+            x::Vector{<:Int}
+        end),
+        :x,
+    )
 
 end
