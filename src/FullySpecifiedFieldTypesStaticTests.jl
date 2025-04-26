@@ -81,7 +81,7 @@ function check_field_type_fully_specified(mod::Module, typevars, field_type_expr
     return check_unionall_expr_is_fully_specified(mod, TypeObj, field_type_expr)
 end
 
-function check_unionall_expr_is_fully_specified(mod::Module, TypeObj::UnionAll, expr::Expr)
+function check_unionall_expr_is_fully_specified(mod::Module, TypeObj::UnionAll, expr)
     num_type_args = _count_unionall_parameters(TypeObj)
     num_params = _count_type_expr_params(expr)
     dump(expr)
@@ -98,6 +98,7 @@ function _count_unionall_parameters(TypeObj::UnionAll)
     end
     return count
 end
+_count_type_expr_params(s::Symbol) = 0
 function _count_type_expr_params(expr::Expr)
     if expr.head !== :curly
         return 0
