@@ -31,4 +31,12 @@
         :x,
     )
 
+    # Proper type arguments
+    @test field_is_fully_specified(
+        @__MODULE__,
+        :(struct S{T} x::Vector{T} end),
+        :x,
+    )
+
+
 end
