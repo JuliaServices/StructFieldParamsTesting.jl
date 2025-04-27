@@ -77,11 +77,18 @@ function field_type_not_complete_message(
     mod::Module, struct_name, field_name, field_type_expr, TypeObj,
     num_type_params, num_expr_args,
 )
-    io = IOBuffer()
-    show(IOContext(io, :compact=>false), Vector)
-    complete_type = String(take!(io))
+    # io = IOBuffer()
+    # show(IOContext(io, :compact=>false), TypeObj)
+    # complete_type = String(take!(io))
     typename = nameof(TypeObj)
-    # with_full_where = :($(field_type_expr) where {$(typevars...)})
+    typevars = join(["T$i" for i in 1:(num_type_params - num_expr_args)], ", ")
+    typestr = "$(field_type_expr)"
+    if contains(typestr, "}")
+        replace(typestr, "}" => ", $(typevars)}")
+    else
+        typestr = "$(typestr){$(typevars)}"
+    end
+    complete_type = "$(typestr) where {$(typevars)}"
     """
     In struct `$(mod).$(struct_name)`, the field `$(field_name)` does not have a fully \
     specified type:
@@ -98,8 +105,8 @@ function field_type_not_complete_message(
 
     If, instead, this type instability is on purpose, please fully specify the omitted \
     type parameters to silence this message. You can write that as `$(complete_type)`, or \
-    possibly in a shorter alias form which this message cannot detect. (E.g. you can write \
-    `Vector{T} where T` instead of `Array{T, 1} where T`.)
+    possibly in a shorter alias form which this message can't always detect. (E.g. you can \
+    write `Vector{T} where T` instead of `Array{T, 1} where T`.)
     """
 end
 

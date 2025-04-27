@@ -160,8 +160,8 @@ end
         In struct `$(@__MODULE__).S`, the field `y` does not have a fully specified type:
           - `y::Vector`
 
-        The complete type is `Array{T, 1} where T`. The current definition specifies 0 \
-        type arguments, but the type `Array{T, 1} where T` expects 1 type parameter(s). \
+        The complete type is `Vector{T1} where {T1}`. The current definition specifies 0 \
+        type arguments, but the type `Vector{T1} where {T1}` expects 1 type parameter(s). \
         This means the struct's field currently has an abstract type (it is type \
         unstable), and any access to it will cause a dynamic dispatch.
 
@@ -170,9 +170,9 @@ end
         concrete, with all parameters specified.
 
         If, instead, this type instability is on purpose, please fully specify the omitted \
-        type parameters to silence this message. You can write that as `Array{T, 1} where \
-        T`, or possibly in a shorter alias form which this message cannot detect. (E.g. \
-        you can write `Vector{T} where T` instead of `Array{T, 1} where T`.)
+        type parameters to silence this message. You can write that as `Vector{T1} where \
+        {T1}`, or possibly in a shorter alias form which this message can't always detect. \
+        (E.g. you can write `Vector{T} where T` instead of `Array{T, 1} where T`.)
         """
     ]) do
         test_all_fields_fully_specified(@__MODULE__,
@@ -184,28 +184,28 @@ end
 
     test_failure([
         """
-        In struct `$(@__MODULE__).S`, the field `x` does not have a fully specified type:
-          - `x::Vector`
+        In struct `$(@__MODULE__).S`, the field `d` does not have a fully specified type:
+          - `d::Dict`
 
-        The complete type is `Array{T, 1} where T`. The current definition specifies 0 \
-        type arguments, but the type `Array{T, 1} where T` expects 1 type parameter(s). \
-        This means the struct's field currently has an abstract type (it is type \
-        unstable), and any access to it will cause a dynamic dispatch.
+        The complete type is `Dict{T1, T2} where {T1, T2}`. The current definition \
+        specifies 0 type arguments, but the type `Dict{T1, T2} where {T1, T2}` expects 2 \
+        type parameter(s). This means the struct's field currently has an abstract type \
+        (it is type unstable), and any access to it will cause a dynamic dispatch.
 
-        If this was a mistake, possibly caused by a change to the `Array` type that \
-        introduced new parameters to it, please make sure that your field `x` is fully \
+        If this was a mistake, possibly caused by a change to the `Dict` type that \
+        introduced new parameters to it, please make sure that your field `d` is fully \
         concrete, with all parameters specified.
 
         If, instead, this type instability is on purpose, please fully specify the omitted \
-        type parameters to silence this message. You can write that as `Array{T, 1} where \
-        T`, or possibly in a shorter alias form which this message cannot detect. (E.g. \
-        you can write `Vector{T} where T` instead of `Array{T, 1} where T`.)
+        type parameters to silence this message. You can write that as `Dict{T1, T2} where \
+        {T1, T2}`, or possibly in a shorter alias form which this message can't always \
+        detect. (E.g. you can write `Vector{T} where T` instead of `Array{T, 1} where T`.)
         """
     ]) do
         test_all_fields_fully_specified(@__MODULE__,
             :(struct S{T}
                 a::Int
-                x::Vector
+                d::Dict
                 y::Vector{T}
             end))
     end
