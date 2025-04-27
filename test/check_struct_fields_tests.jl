@@ -9,6 +9,11 @@
     )
     @test field_is_fully_specified(
         @__MODULE__,
+        :(mutable struct S x::Int end),
+        :x,
+    )
+    @test field_is_fully_specified(
+        @__MODULE__,
         :(struct S x::Vector{Int} end),
         :x,
     )
@@ -16,6 +21,11 @@
     @test field_is_fully_specified(
         @__MODULE__,
         :(struct S{T<:Int} x::Vector{T} end),
+        :x,
+    )
+    @test field_is_fully_specified(
+        @__MODULE__,
+        :(mutable struct S{T<:Int} x::Vector{T} end),
         :x,
     )
 
@@ -38,6 +48,11 @@
     @test field_is_fully_specified(
         @__MODULE__,
         :(struct S{T1,T2} x::Vector{Int} end),
+        :x,
+    )
+    @test field_is_fully_specified(
+        @__MODULE__,
+        :(mutable struct S{T1,T2} x::Vector{Int} end),
         :x,
     )
 

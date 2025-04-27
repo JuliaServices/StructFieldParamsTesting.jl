@@ -15,4 +15,4 @@ ReTestItems = "1"
 ReTestItems = "817f1d60-ba6b-4fd5-9520-3cf149f6a823"
 
 [targets]
-test = ["ReTestItems", "Test"]
+test = ["ReTestItems"]

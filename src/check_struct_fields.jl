@@ -22,8 +22,10 @@ function _extract_struct_field_types(pkg::Module, struct_expr)
     @capture(
         struct_expr,
         struct name_{T__} <: S_ fields__ end | struct name_ <: S_ fields__ end |
-        struct name_{T__} fields__ end | struct name_ fields__ end
-    ) || error("Invalid struct expression")
+        struct name_{T__} fields__ end | struct name_ fields__ end |
+        mutable struct name_{T__} <: S_ fields__ end | mutable struct name_ <: S_ fields__ end |
+        mutable struct name_{T__} fields__ end | mutable struct name_ fields__ end
+    ) || error("Invalid struct expression: $(struct_expr)")
 
     T === nothing && (T = [])
 
