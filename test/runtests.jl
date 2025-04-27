@@ -1,3 +1,4 @@
+using FullySpecifiedFieldTypesStaticTests
 using ReTestItems
 
-ReTestItems.runtests("test")
+ReTestItems.runtests(FullySpecifiedFieldTypesStaticTests)
