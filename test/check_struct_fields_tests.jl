@@ -209,5 +209,67 @@ end
                 y::Vector{T}
             end))
     end
+
+    test_failure([
+        """
+        In struct `$(@__MODULE__).S`, the field `d` does not have a fully specified type:
+          - `d::Dict{K}`
+
+        The complete type is `Dict{K, T1} where {T1}`. The current definition \
+        specifies 1 type arguments, but the type `Dict{K, T1} where {T1}` expects 2 \
+        type parameter(s). This means the struct's field currently has an abstract type \
+        (it is type unstable), and any access to it will cause a dynamic dispatch.
+
+        If this was a mistake, possibly caused by a change to the `Dict` type that \
+        introduced new parameters to it, please make sure that your field `d` is fully \
+        concrete, with all parameters specified.
+
+        If, instead, this type instability is on purpose, please fully specify the omitted \
+        type parameters to silence this message. You can write that as `Dict{K, T1} where \
+        {T1}`, or possibly in a shorter alias form which this message can't always \
+        detect. (E.g. you can write `Vector{T} where T` instead of `Array{T, 1} where T`.)
+        """
+    ]) do
+        test_all_fields_fully_specified(@__MODULE__,
+            :(struct S{K}
+                a::Int
+                d::Dict{K}
+                y::Vector{K}
+            end))
+    end
+
+
+    # MULTIPLE FAILURES
+    # TODO: unfortunately we can only report one at a time right now.
+
+    test_failure([
+        """
+        In struct `$(@__MODULE__).S`, the field `d` does not have a fully specified type:
+          - `d::Dict`
+
+        The complete type is `Dict{T1, T2} where {T1, T2}`. The current definition \
+        specifies 0 type arguments, but the type `Dict{T1, T2} where {T1, T2}` expects 2 \
+        type parameter(s). This means the struct's field currently has an abstract type \
+        (it is type unstable), and any access to it will cause a dynamic dispatch.
+
+        If this was a mistake, possibly caused by a change to the `Dict` type that \
+        introduced new parameters to it, please make sure that your field `d` is fully \
+        concrete, with all parameters specified.
+
+        If, instead, this type instability is on purpose, please fully specify the omitted \
+        type parameters to silence this message. You can write that as `Dict{T1, T2} where \
+        {T1, T2}`, or possibly in a shorter alias form which this message can't always \
+        detect. (E.g. you can write `Vector{T} where T` instead of `Array{T, 1} where T`.)
+        """
+    ]) do
+        test_all_fields_fully_specified(@__MODULE__,
+            :(struct S
+                a::Int
+                d::Dict
+                e::Dict
+                y::Vector{T} where T
+            end))
+    end
+
 end
 

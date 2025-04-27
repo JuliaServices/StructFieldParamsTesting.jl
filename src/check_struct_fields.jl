@@ -83,8 +83,9 @@ function field_type_not_complete_message(
     typename = nameof(TypeObj)
     typevars = join(["T$i" for i in 1:(num_type_params - num_expr_args)], ", ")
     typestr = "$(field_type_expr)"
-    if contains(typestr, "}")
-        replace(typestr, "}" => ", $(typevars)}")
+    @show typestr
+    if occursin("}", typestr)
+        typestr = replace(typestr, "}" => ", $(typevars)}")
     else
         typestr = "$(typestr){$(typevars)}"
     end
