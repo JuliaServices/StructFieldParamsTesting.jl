@@ -131,16 +131,83 @@ end
 end
 
 @testitem "all fields failures" begin
+    function test_failure(f, msgs)
+        # HACK: Hide the active testset from Test.jl, so that it cannot register
+        # the tests failures with the outer testset.
+        failed = false
+        e = task_local_storage(:__BASETESTNEXT__, Test.AbstractTestSet[]) do
+            try
+                f()
+            catch e;
+                failed = true
+                e
+            end
+        end
+        @test failed
+        @test length(e.errors_and_fails) == length(msgs)
+        for (i,expected_msg) in enumerate(msgs)
+            msg = e.errors_and_fails[i].value
+            @assert startswith(msg, "AssertionError(\"")
+            msg = msg[17:end-2]
+            msg = Base.unescape_string(msg)
+            @test msg == expected_msg
+        end
+    end
+    # ---
 
-    @testset "failures" begin
-        ts = test_all_fields_fully_specified(@__MODULE__,
+    test_failure([
+        """
+        In struct `$(@__MODULE__).S`, the field `y` does not have a fully specified type:
+          - `y::Vector`
+
+        The complete type is `Array{T, 1} where T`. The current definition specifies 0 \
+        type arguments, but the type `Array{T, 1} where T` expects 1 type parameter(s). \
+        This means the struct's field currently has an abstract type (it is type \
+        unstable), and any access to it will cause a dynamic dispatch.
+
+        If this was a mistake, possibly caused by a change to the `Array` type that \
+        introduced new parameters to it, please make sure that your field `y` is fully \
+        concrete, with all parameters specified.
+
+        If, instead, this type instability is on purpose, please fully specify the omitted \
+        type parameters to silence this message. You can write that as `Array{T, 1} where \
+        T`, or possibly in a shorter alias form which this message cannot detect. (E.g. \
+        you can write `Vector{T} where T` instead of `Array{T, 1} where T`.)
+        """
+    ]) do
+        test_all_fields_fully_specified(@__MODULE__,
             :(struct S{T}
+                x::Vector{T}
+                y::Vector
+            end))
+    end
+
+    test_failure([
+        """
+        In struct `$(@__MODULE__).S`, the field `x` does not have a fully specified type:
+          - `x::Vector`
+
+        The complete type is `Array{T, 1} where T`. The current definition specifies 0 \
+        type arguments, but the type `Array{T, 1} where T` expects 1 type parameter(s). \
+        This means the struct's field currently has an abstract type (it is type \
+        unstable), and any access to it will cause a dynamic dispatch.
+
+        If this was a mistake, possibly caused by a change to the `Array` type that \
+        introduced new parameters to it, please make sure that your field `x` is fully \
+        concrete, with all parameters specified.
+
+        If, instead, this type instability is on purpose, please fully specify the omitted \
+        type parameters to silence this message. You can write that as `Array{T, 1} where \
+        T`, or possibly in a shorter alias form which this message cannot detect. (E.g. \
+        you can write `Vector{T} where T` instead of `Array{T, 1} where T`.)
+        """
+    ]) do
+        test_all_fields_fully_specified(@__MODULE__,
+            :(struct S{T}
+                a::Int
                 x::Vector
                 y::Vector{T}
             end))
-        @show ts
-        @test length(ts.results) == 2
-        @test ts.n_passed == 1
     end
 end
 
