@@ -77,22 +77,29 @@ function field_type_not_complete_message(
     mod::Module, struct_name, field_name, field_type_expr, TypeObj,
     num_type_params, num_expr_args,
 )
+    io = IOBuffer()
+    show(IOContext(io, :compact=>false), Vector)
+    complete_type = String(take!(io))
+    typename = nameof(TypeObj)
     # with_full_where = :($(field_type_expr) where {$(typevars...)})
     """
-    In struct $(mod).$(struct_name), field `$(field_name)` does not have fully specified type:
-        - `$(field_name)::$(field_type_expr)`
+    In struct `$(mod).$(struct_name)`, the field `$(field_name)` does not have a fully \
+    specified type:
+      - `$(field_name)::$(field_type_expr)`
 
-    The complete type should be `$(complete_type)`. The current definition only specifies \
-    $(num_expr_args) type arguments, but the type `$(TypeObj)` expects $(num_type_args) \
-    type parameters. This means the field has an abstract type (it is type unstable), and \
-    any access to it will cause a dynamic dispatch.
+    The complete type is `$(complete_type)`. The current definition specifies \
+    $(num_expr_args) type arguments, but the type `$(complete_type)` expects \
+    $(num_type_params) type parameter(s). This means the struct's field currently has an \
+    abstract type (it is type unstable), and any access to it will cause a dynamic dispatch.
 
-    If this type instability is on purpose, please fully specify the omitted type \
-    parameters. You can write that as `$(complete_type)`.
+    If this was a mistake, possibly caused by a change to the `$(typename)` type that \
+    introduced new parameters to it, please make sure that your field `$(field_name)` is \
+    fully concrete, with all parameters specified.
 
-    If instead this was a mistake, possibly caused by a change that introduced new \
-    parameters to the type, please make sure that your field is fully concrete, with all \
-    parameters specified.
+    If, instead, this type instability is on purpose, please fully specify the omitted \
+    type parameters to silence this message. You can write that as `$(complete_type)`, or \
+    possibly in a shorter alias form which this message cannot detect. (E.g. you can write \
+    `Vector{T} where T` instead of `Array{T, 1} where T`.)
     """
 end
 

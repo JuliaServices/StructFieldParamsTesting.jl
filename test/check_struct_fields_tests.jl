@@ -115,3 +115,32 @@
         :x,
     )
 end
+
+@testitem "all fields" begin
+    test_all_fields_fully_specified(@__MODULE__,
+        :(struct S{T}
+            x::Vector{T}
+            y::Vector{T}
+        end))
+
+    test_all_fields_fully_specified(@__MODULE__,
+        :(struct S{T}
+            x::Vector{T}
+            y::Vector{T}
+        end))
+end
+
+@testitem "all fields failures" begin
+
+    @testset "failures" begin
+        ts = test_all_fields_fully_specified(@__MODULE__,
+            :(struct S{T}
+                x::Vector
+                y::Vector{T}
+            end))
+        @show ts
+        @test length(ts.results) == 2
+        @test ts.n_passed == 1
+    end
+end
+
