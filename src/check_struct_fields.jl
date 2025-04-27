@@ -27,13 +27,17 @@ function _extract_struct_field_types(pkg::Module, struct_expr)
 
     T === nothing && (T = [])
 
-    fields_dict = Dict{Symbol, Any}(_fieldname(e) => _fieldtype(e) for e in fields)
+    fields_split = split_field.(fields)
+    filter!(x -> x !== nothing, fields_split)
+    fields_dict = Dict{Symbol, Any}(fields_split)
     return (name, T, fields_dict)
 end
-_fieldname(s::Symbol) = s
-_fieldname(e::Expr) = e.args[1]
-_fieldtype(::Symbol) = :Any
-_fieldtype(e::Expr) = e.args[2]
+function split_field(e)
+    @capture(e, n_::T_ | n_) || return nothing
+    n isa Symbol || return nothing
+    T === nothing && (T = Any)
+    return (n, T)
+end
 
 function check_field_type_fully_specified(
     mod::Module, struct_name, field_name, typevars, field_type_expr;

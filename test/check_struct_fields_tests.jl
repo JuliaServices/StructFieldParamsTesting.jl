@@ -131,7 +131,7 @@ end
 end
 
 @testitem "all fields failures" begin
-    function test_failure(f, msgs)
+    function test_failure_msg(f, msgs)
         # HACK: Hide the active testset from Test.jl, so that it cannot register
         # the tests failures with the outer testset.
         failed = false
@@ -155,7 +155,7 @@ end
     end
     # ---
 
-    test_failure([
+    test_failure_msg([
         """
         In struct `$(@__MODULE__).S`, the field `y` does not have a fully specified type:
           - `y::Vector`
@@ -182,7 +182,7 @@ end
             end))
     end
 
-    test_failure([
+    test_failure_msg([
         """
         In struct `$(@__MODULE__).S`, the field `d` does not have a fully specified type:
           - `d::Dict`
@@ -210,7 +210,7 @@ end
             end))
     end
 
-    test_failure([
+    test_failure_msg([
         """
         In struct `$(@__MODULE__).S`, the field `d` does not have a fully specified type:
           - `d::Dict{K}`
@@ -242,7 +242,7 @@ end
     # MULTIPLE FAILURES
     # TODO: unfortunately we can only report one at a time right now.
 
-    test_failure([
+    test_failure_msg([
         """
         In struct `$(@__MODULE__).S`, the field `d` does not have a fully specified type:
           - `d::Dict`
@@ -273,3 +273,54 @@ end
 
 end
 
+@testitem "struct with constructors" begin
+    function test_failure(f)
+        @test_throws TestSetException begin
+            # HACK: Hide the active testset from Test.jl, so that it cannot register
+            # the tests failures with the outer testset.
+            task_local_storage(:__BASETESTNEXT__, Test.AbstractTestSet[]) do
+            f()
+            end
+        end
+    end
+
+    # Successes with functions
+    test_all_fields_fully_specified(@__MODULE__,
+        :(struct S
+            a::Int
+        end))
+    test_all_fields_fully_specified(@__MODULE__,
+        :(struct S
+            a::Int
+            S() = new(1)
+            make_s() = new(1)
+        end))
+    test_all_fields_fully_specified(@__MODULE__,
+        :(struct S{K}
+            a::Int
+            e::Dict{K,V} where V
+            y::Vector{T} where T
+            S(x,y,z) = new{typeof(x)}(x,y,z)
+            S{K}(args...) where {K} = new{K}(args...)
+        end))
+
+    # FAILURES with functions
+    test_failure() do
+        test_all_fields_fully_specified(@__MODULE__,
+            :(struct S
+                d::Dict
+                S(x) = new(x)
+                S(args...) = new(args...)
+            end))
+    end
+    test_failure() do
+        test_all_fields_fully_specified(@__MODULE__,
+            :(struct S{K}
+                a::Int
+                e::Dict{K}
+                y::Vector{T} where T
+                S(x,y,z) = new{typeof(x)}(x,y,z)
+                S{K}(args...) where {K} = new{K}(args...)
+            end))
+    end
+end
