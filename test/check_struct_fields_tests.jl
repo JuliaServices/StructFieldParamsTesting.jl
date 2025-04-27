@@ -1,5 +1,5 @@
 
-@testitem "FullySpecifiedFieldTypesStaticTests.jl" begin
+@testitem "check field tests" begin
 
     # Concrete DataType
     @test field_is_fully_specified(
@@ -114,7 +114,4 @@
         :(struct S x end),
         :x,
     )
-
-
-
 end
