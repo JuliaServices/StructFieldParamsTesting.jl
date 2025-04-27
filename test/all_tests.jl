@@ -80,21 +80,41 @@
     )
 
     # False cases:
-    @test field_is_fully_specified(
+    @test false == field_is_fully_specified(
         @__MODULE__,
         :(struct S{T1} x::Dict{T1} end),
         :x,
-    ) == false
-    @test field_is_fully_specified(
+    )
+    @test false == field_is_fully_specified(
         @__MODULE__,
         :(struct S x::Dict end),
         :x,
-    ) == false
-    @test field_is_fully_specified(
+    )
+    @test false == field_is_fully_specified(
         @__MODULE__,
         :(struct S{T} x::Dict end),
         :x,
-    ) == false
+    )
+
+    # Not applicable (abstract type or no type at all):
+    @test field_is_fully_specified(
+        @__MODULE__,
+        :(struct S x::Any end),
+        :x,
+    )
+    @test field_is_fully_specified(
+        @__MODULE__,
+        :(struct S x::Number end),
+        :x,
+    )
+    # TODO: Should this complain also? I don't think so.
+    #     - Maybe an option to have it complain?
+    @test field_is_fully_specified(
+        @__MODULE__,
+        :(struct S x end),
+        :x,
+    )
+
 
 
 end

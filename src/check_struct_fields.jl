@@ -52,6 +52,12 @@ function check_field_type_fully_specified(
         @info "Type is concrete: $(TypeObj)"
         return true
     end
+    if typeof(TypeObj) == DataType
+        # The type is a DataType, so it is fully specified.
+        # Presumably, it is an abstract type like `Number` or `Any`
+        @info "Type is a DataType: $(TypeObj)"
+        return true
+    end
     @assert typeof(TypeObj) === UnionAll "$(TypeObj) is not a UnionAll. Got $(typeof(TypeObj))."
 
     num_type_params = _count_unionall_parameters(TypeObj)
