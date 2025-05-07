@@ -131,7 +131,7 @@
     )
 
     # TODO: UNIONS
-    @test_broken field_is_fully_specified(
+    @test field_is_fully_specified(
         @__MODULE__,
         :(struct S x::Union{Int,Float64} end),
         :x,
@@ -139,6 +139,11 @@
     @test_broken false == field_is_fully_specified(
         @__MODULE__,
         :(struct S x::Union{Vector,Float64} end),
+        :x,
+    )
+    @test field_is_fully_specified(
+        @__MODULE__,
+        :(struct S x::Union{Vector{<:Any},Float64} end),
         :x,
     )
 
