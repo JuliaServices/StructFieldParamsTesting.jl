@@ -70,6 +70,10 @@ function check_field_type_fully_specified(
         #     For now, just skip these fields.
         return true
     end
+    if TypeObj == Type
+        # TODO: FOR NOW, to avoid noisy result
+        return true
+    end
     @assert typeof(TypeObj) === UnionAll "$(TypeObj) is not a UnionAll. Got $(typeof(TypeObj))."
 
     num_type_params = _count_unionall_parameters(TypeObj)
