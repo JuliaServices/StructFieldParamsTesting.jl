@@ -14,17 +14,18 @@ function include_and_parse_file(pkg::Module, file::String)
     # Parse the file and call handle_parsed_expression on each expression.
     contents = read(file, String)
     eval_module = Module(:FullySpecifiedFieldTypesStaticTests__Evals)
+    line = 0
     Base.include_string(eval_module, contents, relpath(file)) do e
-        handle_parsed_expression(pkg, e, file)
+        line = handle_parsed_expression(pkg, e, file, line)
     end
 end
 
-handle_parsed_expression(::Module, ::Any, file) = nothing
-function handle_parsed_expression(pkg::Module, parsed::Expr, file)
+handle_parsed_expression(::Module, ::Any, _file, _line) = nothing
+handle_parsed_expression(::Module, loc::LineNumberNode, _file, _line) = loc.line
+function handle_parsed_expression(pkg::Module, parsed::Expr, file, line)
     if parsed.head == :struct
         # DO THE THING
-        @show parsed
-        test_all_fields_fully_specified(pkg, parsed)
+        test_all_fields_fully_specified(pkg, parsed, location = "$(file):$(line)")
     elseif parsed.head == :call && parsed.args[1] == :include
         # Follow includes to more files
         new_file = joinpath(dirname(file), parsed.args[2])
@@ -34,12 +35,16 @@ function handle_parsed_expression(pkg::Module, parsed::Expr, file)
         inner_mod = Core.eval(pkg, modname)
         @testset "$(inner_mod)" begin
             for expr in parsed.args
-                handle_parsed_expression(inner_mod, expr, file)
+                if expr isa LineNumberNode
+                    line = expr.line
+                else
+                    line = handle_parsed_expression(inner_mod, expr, file, line)
+                end
             end
         end
     else
         for expr in parsed.args
-            handle_parsed_expression(pkg, expr, file)
+            line = handle_parsed_expression(pkg, expr, file, line)
         end
     end
 end

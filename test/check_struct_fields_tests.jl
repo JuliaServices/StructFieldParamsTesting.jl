@@ -193,6 +193,9 @@ end
         In struct `$(@__MODULE__).S`, the field `y` does not have a fully specified type:
           - `y::Vector`
 
+        Defined at line:
+            fake_file.jl:100
+
         The complete type is `Vector{T1} where {T1}`. The current definition specifies 0 \
         type arguments, but the type `Vector{T1} where {T1}` expects 1 type parameter(s). \
         This means the struct's field currently has an abstract type (it is type \
@@ -212,13 +215,17 @@ end
             :(struct S{T}
                 x::Vector{T}
                 y::Vector
-            end))
+            end),
+            location = "fake_file.jl:100")
     end
 
     test_failure_msg([
         """
         In struct `$(@__MODULE__).S`, the field `d` does not have a fully specified type:
           - `d::Dict`
+
+        Defined at line:
+            nothing
 
         The complete type is `Dict{T1, T2} where {T1, T2}`. The current definition \
         specifies 0 type arguments, but the type `Dict{T1, T2} where {T1, T2}` expects 2 \
@@ -247,6 +254,9 @@ end
         """
         In struct `$(@__MODULE__).S`, the field `d` does not have a fully specified type:
           - `d::Dict{K}`
+
+        Defined at line:
+            nothing
 
         The complete type is `Dict{K, T1} where {T1}`. The current definition \
         specifies 1 type arguments, but the type `Dict{K, T1} where {T1}` expects 2 \
@@ -280,6 +290,9 @@ end
         In struct `$(@__MODULE__).S`, the field `d` does not have a fully specified type:
           - `d::Dict`
 
+        Defined at line:
+            foo.jl:10
+
         The complete type is `Dict{T1, T2} where {T1, T2}`. The current definition \
         specifies 0 type arguments, but the type `Dict{T1, T2} where {T1, T2}` expects 2 \
         type parameter(s). This means the struct's field currently has an abstract type \
@@ -301,7 +314,8 @@ end
                 d::Dict
                 e::Dict
                 y::Vector{T} where T
-            end))
+            end),
+            location = "foo.jl:10")
     end
 
 end

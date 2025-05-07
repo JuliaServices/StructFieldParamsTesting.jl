@@ -1,21 +1,22 @@
-function test_all_fields_fully_specified(pkg::Module, struct_expr)
+function test_all_fields_fully_specified(pkg::Module, struct_expr; location = nothing)
     (struct_name, T, fields_dict) = _extract_struct_field_types(pkg::Module, struct_expr)
     @testset "$struct_name" begin
         for (field_name, field_type_expr) in fields_dict
             check_field_type_fully_specified(pkg, struct_name, field_name, T,
-                                            field_type_expr, report_error = true)
+                                            field_type_expr,
+                                            report_error = true, location = location)
             @test true
         end
     end
 end
 
-function field_is_fully_specified(pkg::Module, struct_expr, field_name)
+function field_is_fully_specified(pkg::Module, struct_expr, field_name; location = nothing)
     (name, T, fields_dict) = _extract_struct_field_types(pkg::Module, struct_expr)
     field_type_expr = fields_dict[field_name]
 
     return check_field_type_fully_specified(
             pkg, name, field_name, T, field_type_expr,
-            report_error = false)
+            report_error = false, location = location)
 end
 
 function _extract_struct_field_types(pkg::Module, struct_expr)
@@ -43,7 +44,7 @@ end
 
 function check_field_type_fully_specified(
     mod::Module, struct_name, field_name, typevars, field_type_expr;
-    report_error,
+    report_error, location,
 )
     print("TypeVars: ")
     dump(typevars)
@@ -83,7 +84,8 @@ function check_field_type_fully_specified(
     success = num_type_params <= num_expr_args
     if report_error
         @assert success field_type_not_complete_message(
-            mod, struct_name, field_name, field_type_expr, TypeObj, num_type_params, num_expr_args
+            mod, struct_name, field_name, field_type_expr, TypeObj, num_type_params,
+            num_expr_args, location,
         )
     end
     return success
@@ -91,7 +93,7 @@ end
 
 function field_type_not_complete_message(
     mod::Module, struct_name, field_name, field_type_expr, TypeObj,
-    num_type_params, num_expr_args,
+    num_type_params, num_expr_args, location,
 )
     # io = IOBuffer()
     # show(IOContext(io, :compact=>false), TypeObj)
@@ -110,6 +112,9 @@ function field_type_not_complete_message(
     In struct `$(mod).$(struct_name)`, the field `$(field_name)` does not have a fully \
     specified type:
       - `$(field_name)::$(field_type_expr)`
+
+    Defined at line:
+        $(location)
 
     The complete type is `$(complete_type)`. The current definition specifies \
     $(num_expr_args) type arguments, but the type `$(complete_type)` expects \
