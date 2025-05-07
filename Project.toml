@@ -1,4 +1,4 @@
-name = "FullySpecifiedFieldTypesStaticTests"
+name = "StructFieldParamsTesting"
 uuid = "8fe10a02-1771-480e-a02f-5f517471aeda"
 authors = ["Nathan Daly <nathan.daly@relational.ai> and contributors"]
 version = "1.0.0-DEV"
