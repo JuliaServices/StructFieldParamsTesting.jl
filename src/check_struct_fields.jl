@@ -47,6 +47,7 @@ function check_field_type_fully_specified(
 )
     print("TypeVars: ")
     dump(typevars)
+    @show mod
     TypeObj = Base.eval(mod, quote
         $(field_type_expr) where {$(typevars...)}
     end)

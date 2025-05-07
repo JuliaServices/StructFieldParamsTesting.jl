@@ -29,6 +29,14 @@ function handle_parsed_expression(pkg::Module, parsed::Expr, file)
         # Follow includes to more files
         new_file = joinpath(dirname(file), parsed.args[2])
         include_and_parse_file(pkg, new_file)
+    elseif parsed.head == :module
+        modname = parsed.args[2]
+        inner_mod = Core.eval(pkg, modname)
+        @testset "$(inner_mod)" begin
+            for expr in parsed.args
+                handle_parsed_expression(inner_mod, expr, file)
+            end
+        end
     else
         for expr in parsed.args
             handle_parsed_expression(pkg, expr, file)
