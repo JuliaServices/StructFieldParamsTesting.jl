@@ -140,6 +140,44 @@
         :x,
     )
 
+    # Type alias:
+    Foo{T} = Union{Vector{T}, Set{T}}
+    @test field_is_fully_specified(
+        @__MODULE__,
+        :(struct S{T} x::Foo{T} end),
+        :x,
+    )
+    Bar{T} = Union{Vector{T}, Dict{T}}
+    @test field_is_fully_specified(
+        @__MODULE__,
+        :(struct S{T} x::Bar{T} end),
+        :x,
+    )
+    Qux{T} = Union{Vector{T}, Dict{K, T} where K}
+    @test field_is_fully_specified(
+        @__MODULE__,
+        :(struct S{T} x::Qux{T} end),
+        :x,
+    )
+    Baz{T} = Union{Vector{T}, Dict{Any, T}}
+    @test field_is_fully_specified(
+        @__MODULE__,
+        :(struct S{T} x::Baz{T} end),
+        :x,
+    )
+    Xyz{T} = Union{Vector{T}, Dict{<:Any, T}}
+    @test field_is_fully_specified(
+        @__MODULE__,
+        :(struct S{T} x::Xyz{T} end),
+        :x,
+    )
+    Opt{T} = Union{Vector{T}, Nothing}
+    @test field_is_fully_specified(
+        @__MODULE__,
+        :(struct S{T} x::Opt{T} end),
+        :x,
+    )
+
     # False cases:
     @test false == field_is_fully_specified(
         @__MODULE__,
