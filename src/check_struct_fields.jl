@@ -170,8 +170,10 @@ function _count_unionall_free_parameters(TypeObj::UnionAll)
         TypeObj = TypeObj.body
     end
     # The parameters might themselves be `UnionAll`
-    for param in TypeObj.parameters
-        count += _count_unionall_free_parameters(param)
+    if TypeObj isa DataType
+        for param in TypeObj.parameters
+            count += _count_unionall_free_parameters(param)
+        end
     end
     return count
 end

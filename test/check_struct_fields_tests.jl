@@ -197,6 +197,11 @@
         :(struct S x::Union{Vector{<:Any},Float64} end),
         :x,
     )
+    @test field_is_fully_specified(
+        @__MODULE__,
+        :(struct S x::Union{Vector{T},Float64} where {T<:Integer} end),
+        :x,
+    )
 
 end
 
