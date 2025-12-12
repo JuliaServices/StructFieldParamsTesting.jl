@@ -81,13 +81,42 @@ function check_field_type_fully_specified(
     # "Less than or equal to" in order to support fully constrained parameters in the expr.
     # E.g.: `Vector{T} where T<:Int` has 0 free type params but 1 param in the expression.
     success = num_type_params <= num_expr_args
-    if report_error
-        @assert success field_type_not_complete_message(
+    if !success && report_error
+        throw(FieldTypeIncompleteException(
             mod, struct_name, field_name, field_type_expr, TypeObj, num_type_params,
             num_expr_args, location,
-        )
+        ))
     end
     return success
+end
+
+# TODO: What do we actually want to do for alias types?
+# E.g.
+#   IterableResult{K} = Union{Vector{K}, BeTreeV2_Typed{K}}
+# which unwraps to
+#   Union{Array{K, 1}, BeTreeV2_Typed{K, V, E, KNorm, VNorm, TD}}
+# I think this is a reason to separate "fully-specified" from "concrete".
+# And to be fully-specified this requires exactly 1 type param (for K).
+recurise_unwrap_unionall(@nospecialize(T)) = Base.unwrap_unionall(T)
+recurise_unwrap_unionall(T::UnionAll) = recurise_unwrap_unionall(Base.unwrap_unionall(T))
+recurise_unwrap_unionall(T::Union) = Union{recurise_unwrap_unionall(T.a), recurise_unwrap_unionall(T.b)}
+
+struct FieldTypeIncompleteException <: Exception
+    mod::Module
+    struct_name::Symbol
+    field_name::Symbol
+    field_type_expr::Any
+    TypeObj::Type
+    num_type_params::Int
+    num_expr_args::Int
+    location::Union{Nothing, String}
+end
+function Base.showerror(io::IO, ex::FieldTypeIncompleteException)
+    msg = field_type_not_complete_message(
+        ex.mod, ex.struct_name, ex.field_name, ex.field_type_expr, ex.TypeObj,
+        ex.num_type_params, ex.num_expr_args, ex.location,
+    )
+    print(io, msg)
 end
 
 function field_type_not_complete_message(
@@ -97,7 +126,7 @@ function field_type_not_complete_message(
     # io = IOBuffer()
     # show(IOContext(io, :compact=>false), TypeObj)
     # complete_type = String(take!(io))
-    typename = nameof(TypeObj)
+    typename = TypeObj isa DataType ? nameof(TypeObj) : string(TypeObj)
     typevars = join(["T$i" for i in 1:(num_type_params - num_expr_args)], ", ")
     typestr = "$(field_type_expr)"
     @debug "Type string:" typestr
@@ -106,7 +135,8 @@ function field_type_not_complete_message(
     else
         typestr = "$(typestr){$(typevars)}"
     end
-    complete_type = "$(typestr) where {$(typevars)}"
+    # complete_type = "$(typestr) where {$(typevars)}"
+    complete_type = recurise_unwrap_unionall(TypeObj)
     """
     In struct `$(mod).$(struct_name)`, the field `$(field_name)` does not have a fully \
     specified type:
@@ -115,9 +145,9 @@ function field_type_not_complete_message(
     Defined at line:
         $(location)
 
-    The complete type is `$(complete_type)`. The current definition specifies \
-    $(num_expr_args) type arguments, but the type `$(complete_type)` expects \
-    $(num_type_params) type parameter(s). This means the struct's field currently has an \
+    The complete type is `$(complete_type)`, which expects $(num_type_params) type \
+    parameter(s), but the current definition `$(field_type_expr)` specifies only \
+    $(num_expr_args) type arguments. This means the struct's field currently has an \
     abstract type (it is type unstable), and any access to it will cause a dynamic dispatch.
 
     If this was a mistake, possibly caused by a change to the `$(typename)` type that \
