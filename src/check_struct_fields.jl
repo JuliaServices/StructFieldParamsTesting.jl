@@ -29,7 +29,6 @@ function _extract_struct_field_types(pkg::Module, struct_expr)
     ) || error("Invalid struct expression: $(struct_expr)")
 
     T === nothing && (T = [])
-
     fields_split = split_field.(fields)
     filter!(x -> x !== nothing, fields_split)
     fields_dict = Dict{Symbol, Any}(fields_split)
