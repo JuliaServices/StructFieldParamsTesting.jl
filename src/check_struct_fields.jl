@@ -89,16 +89,28 @@ function check_field_type_fully_specified(
     return success
 end
 
-# TODO: What do we actually want to do for alias types?
+# TODO(type-alias): What do we actually want to do for alias types?
 # E.g.
 #   IterableResult{K} = Union{Vector{K}, BeTreeV2_Typed{K}}
 # which unwraps to
 #   Union{Array{K, 1}, BeTreeV2_Typed{K, V, E, KNorm, VNorm, TD}}
 # I think this is a reason to separate "fully-specified" from "concrete".
-# And to be fully-specified this requires exactly 1 type param (for K).
-recurise_unwrap_unionall(@nospecialize(T)) = Base.unwrap_unionall(T)
-recurise_unwrap_unionall(T::UnionAll) = recurise_unwrap_unionall(Base.unwrap_unionall(T))
-recurise_unwrap_unionall(T::Union) = Union{recurise_unwrap_unionall(T.a), recurise_unwrap_unionall(T.b)}
+# And to be fully-specified this requires only exactly 1 type param (for K).
+# But to be concrete it requires all 6 type params (K, V, E, KNorm, VNorm, TD).
+recursive_unwrap_unionall(@nospecialize(T)) = Base.unwrap_unionall(T)
+recursive_unwrap_unionall(T::UnionAll) = recursive_unwrap_unionall(Base.unwrap_unionall(T))
+recursive_unwrap_unionall(T::Union) = Union{recursive_unwrap_unionall(T.a), recursive_unwrap_unionall(T.b)}
+
+# Get free TypeVar names (without constraints):
+#   Foo{Int, X<:Integer, Y} where {X, Y} => [:X, :Y]
+function type_param_names(TypeObj)
+    names = Symbol[]
+    while typeof(TypeObj) === UnionAll
+        push!(names, TypeObj.var.name)
+        TypeObj = TypeObj.body
+    end
+    return names
+end
 
 struct FieldTypeIncompleteException <: Exception
     mod::Module
@@ -118,6 +130,13 @@ function Base.showerror(io::IO, ex::FieldTypeIncompleteException)
     print(io, msg)
 end
 
+# TODO: Fix the message!
+# This works for e.g.
+#  struct Foo x::Dict end
+#  struct Foo{K} x::Dict{K} end
+#  struct Foo x::Dict{K} where {K} end
+# but not for e.g.
+#  struct Foo x::Dict{Int} end
 function field_type_not_complete_message(
     mod::Module, struct_name, field_name, field_type_expr, TypeObj,
     num_type_params, num_expr_args, location,
@@ -126,28 +145,31 @@ function field_type_not_complete_message(
     # show(IOContext(io, :compact=>false), TypeObj)
     # complete_type = String(take!(io))
     typename = TypeObj isa DataType ? nameof(TypeObj) : string(TypeObj)
-    typevars = join(["T$i" for i in 1:(num_type_params - num_expr_args)], ", ")
-    typestr = "$(field_type_expr)"
-    @debug "Type string:" typestr
-    if occursin("}", typestr)
-        typestr = replace(typestr, "}" => ", $(typevars)}")
-    else
-        typestr = "$(typestr){$(typevars)}"
-    end
-    # complete_type = "$(typestr) where {$(typevars)}"
-    complete_type = recurise_unwrap_unionall(TypeObj)
+    type_params = type_param_names(TypeObj)
+    @assert num_type_params == length(type_params)
+    expr_args = num_expr_args == 0 ? Symbol[] : type_params[1:num_expr_args]
+    complete_type = Base.unwrap_unionall(TypeObj)
+    # TODO(type-alias): see comment on recursive_unwrap_unionall
+    # complete_type_recursive = recursive_unwrap_unionall(TypeObj)
+    s = num_type_params == 1 ? "" : "s"
     """
     In struct `$(mod).$(struct_name)`, the field `$(field_name)` does not have a fully \
     specified type:
-      - `$(field_name)::$(field_type_expr)`
+      `$(field_name)::$(field_type_expr)`
 
     Defined at line:
-        $(location)
+      $(location)
 
-    The complete type is `$(complete_type)`, which expects $(num_type_params) type \
-    parameter(s), but the current definition `$(field_type_expr)` specifies only \
-    $(num_expr_args) type arguments. This means the struct's field currently has an \
-    abstract type (it is type unstable), and any access to it will cause a dynamic dispatch.
+    The complete type is:
+      $(complete_type)
+    which expects $(num_type_params) type parameter$(s): $(join(type_params, ", ")).
+
+    The current definition `$(field_type_expr)` specifies \
+    $(num_expr_args == 0 ? "no type parameters." : "only $(num_expr_args) type parameters: \
+    $(join(expr_args, ", ")).")
+
+    This means the `$(field_name)` field currently has an abstract type (it is type unstable),
+    and any access to it will cause a dynamic dispatch.
 
     If this was a mistake, possibly caused by a change to the `$(typename)` type that \
     introduced new parameters to it, please make sure that your field `$(field_name)` is \
@@ -178,14 +200,17 @@ function _count_unionall_free_parameters(TypeObj::UnionAll)
 end
 
 _count_type_expr_params(mod::Module, @nospecialize(x)) = 0
-_count_type_expr_params(mod::Module, s::Symbol) = Int(!isdefined(mod, s))
+# If the symbol is defined in the module it is not a type var.
+_count_type_expr_params(mod::Module, s::Symbol) = isdefined(mod, s) ? 0 : 1
 function _count_type_expr_params(mod::Module, expr::Expr)
     count = 0
     if expr.head === :where
         expr = expr.args[1]
         count = _count_type_expr_params(mod, expr)
     elseif expr.head == :curly
-        count += sum(_count_type_expr_params(mod, arg) for arg in expr.args)
+        for arg in Iterators.rest(expr.args, 1)
+            count += _count_type_expr_params(mod, arg)
+        end
     end
     return count
 end
