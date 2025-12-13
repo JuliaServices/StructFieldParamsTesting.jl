@@ -1,12 +1,12 @@
 function test_all_fields_fully_specified(pkg::Module, struct_expr; location = nothing)
     (struct_name, T, fields_dict) = _extract_struct_field_types(pkg::Module, struct_expr)
-    @testset "$struct_name" begin
+    # @testset "$struct_name" begin
         for (field_name, field_type_expr) in fields_dict
             check_field_type_fully_specified(pkg, struct_name, field_name, T,
                                             field_type_expr,
                                             report_error = true, location = location)
-            @test true
-        end
+            # @test true
+        # end
     end
 end
 
@@ -123,11 +123,21 @@ struct FieldTypeIncompleteException <: Exception
     location::Union{Nothing, String}
 end
 function Base.showerror(io::IO, ex::FieldTypeIncompleteException)
-    msg = field_type_not_complete_message(
-        ex.mod, ex.struct_name, ex.field_name, ex.field_type_expr, ex.TypeObj,
+    field_type_not_complete_message(
+        io, ex.mod, ex.struct_name, ex.field_name, ex.field_type_expr, ex.TypeObj,
         ex.num_type_params, ex.num_expr_args, ex.location,
     )
-    print(io, msg)
+end
+function print_error(ex::FieldTypeIncompleteException)
+    io = IOBuffer()
+    field_type_not_complete_message(
+        io, ex.mod, ex.struct_name, ex.field_name, ex.field_type_expr, ex.TypeObj,
+        ex.num_type_params, ex.num_expr_args, ex.location,
+    )
+    seekstart(io)
+    # Markdown.print(Markdown.parse(String(take!(io))))
+    md = Markdown.parse(io)
+    show(stdout, MIME"text/plain"(), md)
 end
 
 # TODO: Fix the message!
@@ -138,7 +148,7 @@ end
 # but not for e.g.
 #  struct Foo x::Dict{Int} end
 function field_type_not_complete_message(
-    mod::Module, struct_name, field_name, field_type_expr, TypeObj,
+    io::IO, mod::Module, struct_name, field_name, field_type_expr, TypeObj,
     num_type_params, num_expr_args, location,
 )
     # io = IOBuffer()
@@ -150,36 +160,52 @@ function field_type_not_complete_message(
     expr_args = num_expr_args == 0 ? Symbol[] : type_params[1:num_expr_args]
     complete_type = Base.unwrap_unionall(TypeObj)
     # TODO(type-alias): see comment on recursive_unwrap_unionall
-    # complete_type_recursive = recursive_unwrap_unionall(TypeObj)
+    complete_type_recursive = recursive_unwrap_unionall(TypeObj)
     s = num_type_params == 1 ? "" : "s"
-    """
-    In struct `$(mod).$(struct_name)`, the field `$(field_name)` does not have a fully \
-    specified type:
-      `$(field_name)::$(field_type_expr)`
+    print(io, """
+        In struct `$(mod).$(struct_name)`, the field `$(field_name)` does not have a fully \
+        specified type:\n
+        \t$(field_name)::$(field_type_expr)\n
+        """
+    )
+    if location != nothing
+        print(io, """
+        Defined at line:\n
+        \t$(location)\n
+        """)
+    end
+    print(io, """
+        The complete type is:\n
+        \t$(complete_type)\n
+        which expects $(num_type_params) type parameter$(s): `$(join(type_params, ", "))`.\n
+        """)
+    if string(complete_type) != string(complete_type_recursive)
+        print(io, """
+        And which is an alias for:\n
+        \t$(complete_type_recursive)\n
+        """)
+    end
 
-    Defined at line:
-      $(location)
+    print(io, """
+        The current definition `$(field_type_expr)` specifies \
+        $(num_expr_args == 0 ? "no type parameters." : "only $(num_expr_args) type parameters: \
+        `$(join(expr_args, ", "))`.")
+        """)
 
-    The complete type is:
-      $(complete_type)
-    which expects $(num_type_params) type parameter$(s): $(join(type_params, ", ")).
+    print(io, """
+        This means the `$(field_name)` field currently has an abstract type (it is type unstable),
+        and any access to it will cause a dynamic dispatch.
 
-    The current definition `$(field_type_expr)` specifies \
-    $(num_expr_args == 0 ? "no type parameters." : "only $(num_expr_args) type parameters: \
-    $(join(expr_args, ", ")).")
+        If this was a mistake, possibly caused by a change to the `$(typename)` type that \
+        introduced new parameters to it, please make sure that your field `$(field_name)` is \
+        fully concrete, with all parameters specified.
 
-    This means the `$(field_name)` field currently has an abstract type (it is type unstable),
-    and any access to it will cause a dynamic dispatch.
-
-    If this was a mistake, possibly caused by a change to the `$(typename)` type that \
-    introduced new parameters to it, please make sure that your field `$(field_name)` is \
-    fully concrete, with all parameters specified.
-
-    If, instead, this type instability is on purpose, please fully specify the omitted \
-    type parameters to silence this message. You can write that as `$(complete_type)`, or \
-    possibly in a shorter alias form which this message can't always detect. (E.g. you can \
-    write `Vector{T} where T` instead of `Array{T, 1} where T`.)
-    """
+        If, instead, this type instability is on purpose, please fully specify the omitted \
+        type parameters to silence this message. You can write that as `$(complete_type)`, or \
+        possibly in a shorter alias form which this message can't always detect. (E.g. you can \
+        write `Vector{T} where T` instead of `Array{T, 1} where T`.)
+        """)
+    return io
 end
 
 _count_unionall_free_parameters(@nospecialize(::Any)) = 0
