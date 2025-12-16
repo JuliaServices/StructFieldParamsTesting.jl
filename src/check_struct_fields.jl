@@ -1,11 +1,13 @@
 function test_all_fields_fully_specified(pkg::Module, struct_expr; location = nothing)
     (struct_name, T, fields_dict) = _extract_struct_field_types(pkg::Module, struct_expr)
     @testset "$struct_name" begin
-        for (field_name, field_type_expr) in fields_dict
-            check_field_type_fully_specified(pkg, struct_name, field_name, T,
-                                            field_type_expr,
-                                            report_error = true, location = location)
-            @test true
+        @testset let struct_expr=struct_expr
+            for (field_name, field_type_expr) in fields_dict
+                check_field_type_fully_specified(pkg, struct_name, field_name, T,
+                                                field_type_expr,
+                                                report_error = true, location = location)
+                @test true
+            end
         end
     end
 end
@@ -29,7 +31,6 @@ function _extract_struct_field_types(pkg::Module, struct_expr)
     ) || error("Invalid struct expression: $(struct_expr)")
 
     T === nothing && (T = [])
-
     fields_split = split_field.(fields)
     filter!(x -> x !== nothing, fields_split)
     fields_dict = Dict{Symbol, Any}(fields_split)
@@ -46,24 +47,23 @@ function check_field_type_fully_specified(
     mod::Module, struct_name, field_name, typevars, field_type_expr;
     report_error, location,
 )
-    print("TypeVars: ")
-    dump(typevars)
-    @show mod
+    @debug "Module:" mod
+    @debug "TypeVars:" typevars
     TypeObj = Base.eval(mod, quote
         $(field_type_expr) where {$(typevars...)}
     end)
-    @show TypeObj
+    @debug "Type:" TypeObj
     @assert TypeObj isa Type
 
     if isconcretetype(TypeObj)
         # The type is concrete, so it is fully specified.
-        @info "Type is concrete: $(TypeObj)"
+        @debug "Type is concrete: $(TypeObj)"
         return true
     end
     if typeof(TypeObj) == DataType
         # The type is a DataType, so it is fully specified.
         # Presumably, it is an abstract type like `Number` or `Any`
-        @info "Type is a DataType: $(TypeObj)"
+        @debug "Type is a DataType: $(TypeObj)"
         return true
     end
     if typeof(TypeObj) == Union
@@ -77,78 +77,173 @@ function check_field_type_fully_specified(
     end
     @assert typeof(TypeObj) === UnionAll "$(TypeObj) is not a UnionAll. Got $(typeof(TypeObj))."
 
-    num_type_params = _count_unionall_parameters(TypeObj)
-    num_expr_args = _count_type_expr_params(field_type_expr)
-    # "Less than or equal to" in order to support literal values in the type expression.
-    # E.g.: The UnionAll `Array{<:Int, 1}` has 1 type arg but 2 params in the expression.
+    num_type_params = _count_unionall_free_parameters(TypeObj)
+    num_expr_args = _count_type_expr_params(mod, field_type_expr)
+    # "Less than or equal to" in order to support fully constrained parameters in the expr.
+    # E.g.: `Vector{T} where T<:Int` has 0 free type params but 1 param in the expression.
     success = num_type_params <= num_expr_args
-    if report_error
-        @assert success field_type_not_complete_message(
+    if !success && report_error
+        throw(FieldTypeIncompleteException(
             mod, struct_name, field_name, field_type_expr, TypeObj, num_type_params,
             num_expr_args, location,
-        )
+        ))
     end
     return success
 end
 
+# TODO(type-alias): What do we actually want to do for alias types?
+# E.g.
+#   IterableResult{K} = Union{Vector{K}, BeTreeV2_Typed{K}}
+# which unwraps to
+#   Union{Array{K, 1}, BeTreeV2_Typed{K, V, E, KNorm, VNorm, TD}}
+# I think this is a reason to separate "fully-specified" from "concrete".
+# And to be fully-specified this requires only exactly 1 type param (for K).
+# But to be concrete it requires all 6 type params (K, V, E, KNorm, VNorm, TD).
+recursive_unwrap_unionall(@nospecialize(T)) = Base.unwrap_unionall(T)
+recursive_unwrap_unionall(T::UnionAll) = recursive_unwrap_unionall(Base.unwrap_unionall(T))
+recursive_unwrap_unionall(T::Union) = Union{recursive_unwrap_unionall(T.a), recursive_unwrap_unionall(T.b)}
+
+# Get free TypeVar names (without constraints):
+#   Foo{Int, X<:Integer, Y} where {X, Y} => [:X, :Y]
+function type_param_names(TypeObj)
+    names = Symbol[]
+    while typeof(TypeObj) === UnionAll
+        push!(names, TypeObj.var.name)
+        TypeObj = TypeObj.body
+    end
+    return names
+end
+
+struct FieldTypeIncompleteException <: Exception
+    mod::Module
+    struct_name::Symbol
+    field_name::Symbol
+    field_type_expr::Any
+    TypeObj::Type
+    num_type_params::Int
+    num_expr_args::Int
+    location::Union{Nothing, String}
+end
+function Base.showerror(io::IO, ex::FieldTypeIncompleteException)
+    print(io, "FieldTypeIncompleteException: ")
+    field_type_not_complete_message(
+        io, ex.mod, ex.struct_name, ex.field_name, ex.field_type_expr, ex.TypeObj,
+        ex.num_type_params, ex.num_expr_args, ex.location,
+    )
+end
+function print_error(ex::FieldTypeIncompleteException)
+    io = IOBuffer()
+    field_type_not_complete_message(
+        io, ex.mod, ex.struct_name, ex.field_name, ex.field_type_expr, ex.TypeObj,
+        ex.num_type_params, ex.num_expr_args, ex.location,
+    )
+    seekstart(io)
+    # Markdown.print(Markdown.parse(String(take!(io))))
+    md = Markdown.parse(io)
+    show(stdout, MIME"text/plain"(), md)
+end
+
+# TODO: Fix the message!
+# This works for e.g.
+#  struct Foo x::Dict end
+#  struct Foo{K} x::Dict{K} end
+#  struct Foo x::Dict{K} where {K} end
+# but not for e.g.
+#  struct Foo x::Dict{Int} end
 function field_type_not_complete_message(
-    mod::Module, struct_name, field_name, field_type_expr, TypeObj,
+    io::IO, mod::Module, struct_name, field_name, field_type_expr, TypeObj,
     num_type_params, num_expr_args, location,
 )
     # io = IOBuffer()
     # show(IOContext(io, :compact=>false), TypeObj)
     # complete_type = String(take!(io))
-    typename = nameof(TypeObj)
-    typevars = join(["T$i" for i in 1:(num_type_params - num_expr_args)], ", ")
-    typestr = "$(field_type_expr)"
-    @show typestr
-    if occursin("}", typestr)
-        typestr = replace(typestr, "}" => ", $(typevars)}")
-    else
-        typestr = "$(typestr){$(typevars)}"
+    typename = TypeObj isa DataType ? nameof(TypeObj) : string(TypeObj)
+    type_params = type_param_names(TypeObj)
+    @assert num_type_params <= length(type_params)
+    type_params = type_params[1:num_type_params]
+    expr_args = num_expr_args == 0 ? Symbol[] : type_params[1:num_expr_args]
+    complete_type = Base.unwrap_unionall(TypeObj)
+    # TODO(type-alias): see comment on recursive_unwrap_unionall
+    complete_type_recursive = recursive_unwrap_unionall(TypeObj)
+    s = num_type_params == 1 ? "" : "s"
+    print(io, """
+        In struct `$(mod).$(struct_name)`, the field `$(field_name)` does not have a fully \
+        specified type:\n
+        \t$(field_name)::$(field_type_expr)\n
+        """
+    )
+    if location != nothing
+        print(io, """
+        Defined at line:\n
+        \t$(location)\n
+        """)
     end
-    complete_type = "$(typestr) where {$(typevars)}"
-    """
-    In struct `$(mod).$(struct_name)`, the field `$(field_name)` does not have a fully \
-    specified type:
-      - `$(field_name)::$(field_type_expr)`
+    print(io, """
+        The complete type is:\n
+        \t$(complete_type)\n
+        which expects $(num_type_params) type parameter$(s): `$(join(type_params, ", "))`.\n
+        """)
+    if string(complete_type) != string(complete_type_recursive)
+        print(io, """
+        And which is an alias for:\n
+        \t$(complete_type_recursive)\n
+        """)
+    end
 
-    Defined at line:
-        $(location)
+    print(io, """
+        The current definition `$(field_type_expr)` specifies \
+        $(num_expr_args == 0 ? "no type parameters." : "only $(num_expr_args) type parameters: \
+        `$(join(expr_args, ", "))`.")
+        """)
 
-    The complete type is `$(complete_type)`. The current definition specifies \
-    $(num_expr_args) type arguments, but the type `$(complete_type)` expects \
-    $(num_type_params) type parameter(s). This means the struct's field currently has an \
-    abstract type (it is type unstable), and any access to it will cause a dynamic dispatch.
+    print(io, """
+        This means the `$(field_name)` field currently has an abstract type,
+        and any access to it is type unstable will therefore cause a dynamic dispatch.
 
-    If this was a mistake, possibly caused by a change to the `$(typename)` type that \
-    introduced new parameters to it, please make sure that your field `$(field_name)` is \
-    fully concrete, with all parameters specified.
+        If this was a mistake, possibly caused by a change to the `$(typename)` type that \
+        introduced new parameters to it, please make sure that your field `$(field_name)` is \
+        fully concrete, with all parameters specified.
 
-    If, instead, this type instability is on purpose, please fully specify the omitted \
-    type parameters to silence this message. You can write that as `$(complete_type)`, or \
-    possibly in a shorter alias form which this message can't always detect. (E.g. you can \
-    write `Vector{T} where T` instead of `Array{T, 1} where T`.)
-    """
+        If, instead, this type instability is on purpose, please fully specify the omitted \
+        type parameters to silence this message. You can write that as `$(complete_type)`, or \
+        possibly in a shorter alias form which this message can't always detect. (E.g. you can \
+        write `Vector{T} where T` instead of `Array{T, 1} where T`.)
+        """)
+    return io
 end
 
-function _count_unionall_parameters(TypeObj::UnionAll)
+_count_unionall_free_parameters(@nospecialize(::Any)) = 0
+function _count_unionall_free_parameters(TypeObj::UnionAll)
+    return _count_unionall_free_parameters(Base.unwrap_unionall(TypeObj))
+end
+function _count_unionall_free_parameters(TypeObj::DataType)
     count = 0
-    while typeof(TypeObj) === UnionAll
-        count += 1
-        TypeObj = TypeObj.body
+    for param in @show TypeObj.parameters
+        # only `TypeVars` can be free parameters, but in `T<:ConcreteType`
+        # don't consider `T` as a free parameter
+        if param isa TypeVar && !isconcretetype(param.ub)
+            count += 1
+        end
+        # The parameters might themselves be `UnionAll`
+        count += _count_unionall_free_parameters(param)
     end
     return count
 end
-_count_type_expr_params(s::Symbol) = 0
-function _count_type_expr_params(expr::Expr)
+
+_count_type_expr_params(mod::Module, @nospecialize(x)) = 0
+# If the symbol is defined in the module it is not a type var.
+_count_type_expr_params(mod::Module, s::Symbol) = isdefined(mod, s) ? 0 : 1
+function _count_type_expr_params(mod::Module, expr::Expr)
     count = 0
-    while expr.head === :where
-        count += length(expr.args) - 1
+    if expr.head === :where
         expr = expr.args[1]
-    end
-    if expr.head == :curly
-        count += length(expr.args) - 1
+        count += _count_type_expr_params(mod, expr)
+    elseif expr.head == :<:
+        count += _count_type_expr_params(mod, expr.args[1])
+    elseif expr.head == :curly
+        for arg in Iterators.rest(expr.args, 1)
+            count += _count_type_expr_params(mod, arg)
+        end
     end
     return count
 end

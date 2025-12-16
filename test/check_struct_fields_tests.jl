@@ -1,4 +1,3 @@
-
 @testitem "check field tests" begin
 
     # Concrete DataType
@@ -17,6 +16,17 @@
         :(struct S x::Vector{Int} end),
         :x,
     )
+    @test field_is_fully_specified(
+        @__MODULE__,
+        :(struct S x::Vector{Pair{Dict{Int,String},Set{Bool}}} end),
+        :x,
+    )
+    @test field_is_fully_specified(
+        @__MODULE__,
+        :(struct S{T1} x::Pair{Dict{Bool}, String} end),
+        :x,
+    )
+
     # Fully specified field type (DataType)
     @test field_is_fully_specified(
         @__MODULE__,
@@ -26,6 +36,26 @@
     @test field_is_fully_specified(
         @__MODULE__,
         :(mutable struct S{T<:Int} x::Vector{T} end),
+        :x,
+    )
+    @test field_is_fully_specified(
+        @__MODULE__,
+        :(struct S{T<:Int} x::Dict{T,Int} end),
+        :x,
+    )
+    @test field_is_fully_specified(
+        @__MODULE__,
+        :(struct S{T} x::Vector{<:T} end),
+        :x,
+    )
+    @test field_is_fully_specified(
+        @__MODULE__,
+        :(struct S{T} x::Vector{<:T} where {Integer<:T<:Number} end),
+        :x,
+    )
+    @test field_is_fully_specified(
+        @__MODULE__,
+        :(struct Foo x::Vector{<:Int} end),
         :x,
     )
 
@@ -69,6 +99,11 @@
     )
     @test field_is_fully_specified(
         @__MODULE__,
+        :(struct S{T1,T2} x::Vector{Dict{T1,T2}} end),
+        :x,
+    )
+    @test field_is_fully_specified(
+        @__MODULE__,
         :(struct S{T0,T1,T2} x::Dict{T1,T2} end),
         :x,
     )
@@ -79,9 +114,20 @@
     )
     @test field_is_fully_specified(
         @__MODULE__,
+        :(struct S{T1} x::Dict{T1,T1} end),
+        :x,
+    )
+    @test field_is_fully_specified(
+        @__MODULE__,
         :(struct S{T2} x::Dict{Int,T2} end),
         :x,
     )
+    @test field_is_fully_specified(
+        @__MODULE__,
+        :(struct S{T2} x::Pair{Dict{Int,T2},T2} end),
+        :x,
+    )
+
     # where-clause on the field
     @test field_is_fully_specified(
         @__MODULE__,
@@ -90,7 +136,60 @@
     )
     @test field_is_fully_specified(
         @__MODULE__,
+        :(struct S{T1} x::Dict{T1, T2} where {T2<:Integer} end),
+        :x,
+    )
+    @test field_is_fully_specified(
+        @__MODULE__,
         :(struct S{T1} x::Dict{T1,T2} where T2 end),
+        :x,
+    )
+    @test field_is_fully_specified(
+        @__MODULE__,
+        :(struct S{T1} x::Pair{Dict{K, Int64}, String} where K end),
+        :x,
+    )
+    @test field_is_fully_specified(
+        @__MODULE__,
+        :(struct S{T1} x::Pair{Dict{K, Int64} where K, String} end),
+        :x,
+    )
+
+    # Type alias:
+    Foo{T} = Union{Vector{T}, Set{T}}
+    @test field_is_fully_specified(
+        @__MODULE__,
+        :(struct S{T} x::Foo{T} end),
+        :x,
+    )
+    Bar{T} = Union{Vector{T}, Dict{T}}
+    @test field_is_fully_specified(
+        @__MODULE__,
+        :(struct S{T} x::Bar{T} end),
+        :x,
+    )
+    Qux{T} = Union{Vector{T}, Dict{K, T} where K}
+    @test field_is_fully_specified(
+        @__MODULE__,
+        :(struct S{T} x::Qux{T} end),
+        :x,
+    )
+    Baz{T} = Union{Vector{T}, Dict{Any, T}}
+    @test field_is_fully_specified(
+        @__MODULE__,
+        :(struct S{T} x::Baz{T} end),
+        :x,
+    )
+    Xyz{T} = Union{Vector{T}, Dict{<:Any, T}}
+    @test field_is_fully_specified(
+        @__MODULE__,
+        :(struct S{T} x::Xyz{T} end),
+        :x,
+    )
+    Opt{T} = Union{Vector{T}, Nothing}
+    @test field_is_fully_specified(
+        @__MODULE__,
+        :(struct S{T} x::Opt{T} end),
         :x,
     )
 
@@ -108,6 +207,11 @@
     @test false == field_is_fully_specified(
         @__MODULE__,
         :(struct S{T} x::Dict end),
+        :x,
+    )
+    @test false == field_is_fully_specified(
+        @__MODULE__,
+        :(struct S{T1} x::Pair{Dict{Bool, Int64}} end),
         :x,
     )
 
@@ -144,6 +248,11 @@
     @test field_is_fully_specified(
         @__MODULE__,
         :(struct S x::Union{Vector{<:Any},Float64} end),
+        :x,
+    )
+    @test field_is_fully_specified(
+        @__MODULE__,
+        :(struct S x::Union{Vector{T},Float64} where {T<:Integer} end),
         :x,
     )
 

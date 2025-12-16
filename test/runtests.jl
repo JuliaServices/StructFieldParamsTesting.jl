@@ -1,4 +1,4 @@
-using FullySpecifiedFieldTypesStaticTests
+using StructFieldParamsTesting
 using ReTestItems
 
-ReTestItems.runtests(FullySpecifiedFieldTypesStaticTests)
+runtests(StructFieldParamsTesting; nworkers=1)
