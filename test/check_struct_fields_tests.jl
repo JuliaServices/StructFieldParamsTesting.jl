@@ -43,6 +43,21 @@
         :(struct S{T<:Int} x::Dict{T,Int} end),
         :x,
     )
+    @test field_is_fully_specified(
+        @__MODULE__,
+        :(struct S{T} x::Vector{<:T} end),
+        :x,
+    )
+    @test field_is_fully_specified(
+        @__MODULE__,
+        :(struct S{T} x::Vector{<:T} where {Integer<:T<:Number} end),
+        :x,
+    )
+    @test field_is_fully_specified(
+        @__MODULE__,
+        :(struct Foo x::Vector{<:Int} end),
+        :x,
+    )
 
     # Fully specified UnionAll field type
     @test field_is_fully_specified(

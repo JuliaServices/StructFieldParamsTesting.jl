@@ -1,5 +1,5 @@
-function test_all_structs_have_fully_specified_fields(pkg::Module)
-    @testset "$(pkg)" begin
+function test_all_structs_have_fully_specified_fields(pkg::Module; verbose::Bool=false)
+    @testset "$(pkg)" verbose=verbose begin
         dir = pkgdir(pkg)
         @assert !isnothing(dir) "No file found for Module `$(pkg)`."
         entrypoint = joinpath(dir, "src", "$(nameof(pkg)).jl")
@@ -40,6 +40,7 @@ end
 
 handle_parsed_expression(::Module, x::Any, _loc) = nothing
 function handle_parsed_expression(pkg::Module, parsed::Expr, loc)
+    # @show loc
     if parsed.head == :struct
         # DO THE THING
         location = "$(loc.file):$(loc.line)"

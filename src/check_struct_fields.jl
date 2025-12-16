@@ -1,12 +1,14 @@
 function test_all_fields_fully_specified(pkg::Module, struct_expr; location = nothing)
     (struct_name, T, fields_dict) = _extract_struct_field_types(pkg::Module, struct_expr)
-    # @testset "$struct_name" begin
-        for (field_name, field_type_expr) in fields_dict
-            check_field_type_fully_specified(pkg, struct_name, field_name, T,
-                                            field_type_expr,
-                                            report_error = true, location = location)
-            # @test true
-        # end
+    @testset "$struct_name" begin
+        @testset let struct_expr=struct_expr
+            for (field_name, field_type_expr) in fields_dict
+                check_field_type_fully_specified(pkg, struct_name, field_name, T,
+                                                field_type_expr,
+                                                report_error = true, location = location)
+                @test true
+            end
+        end
     end
 end
 
@@ -123,6 +125,7 @@ struct FieldTypeIncompleteException <: Exception
     location::Union{Nothing, String}
 end
 function Base.showerror(io::IO, ex::FieldTypeIncompleteException)
+    print(io, "FieldTypeIncompleteException: ")
     field_type_not_complete_message(
         io, ex.mod, ex.struct_name, ex.field_name, ex.field_type_expr, ex.TypeObj,
         ex.num_type_params, ex.num_expr_args, ex.location,
@@ -156,7 +159,8 @@ function field_type_not_complete_message(
     # complete_type = String(take!(io))
     typename = TypeObj isa DataType ? nameof(TypeObj) : string(TypeObj)
     type_params = type_param_names(TypeObj)
-    @assert num_type_params == length(type_params)
+    @assert num_type_params <= length(type_params)
+    type_params = type_params[1:num_type_params]
     expr_args = num_expr_args == 0 ? Symbol[] : type_params[1:num_expr_args]
     complete_type = Base.unwrap_unionall(TypeObj)
     # TODO(type-alias): see comment on recursive_unwrap_unionall
@@ -193,8 +197,8 @@ function field_type_not_complete_message(
         """)
 
     print(io, """
-        This means the `$(field_name)` field currently has an abstract type (it is type unstable),
-        and any access to it will cause a dynamic dispatch.
+        This means the `$(field_name)` field currently has an abstract type,
+        and any access to it is type unstable will therefore cause a dynamic dispatch.
 
         If this was a mistake, possibly caused by a change to the `$(typename)` type that \
         introduced new parameters to it, please make sure that your field `$(field_name)` is \
@@ -210,17 +214,18 @@ end
 
 _count_unionall_free_parameters(@nospecialize(::Any)) = 0
 function _count_unionall_free_parameters(TypeObj::UnionAll)
+    return _count_unionall_free_parameters(Base.unwrap_unionall(TypeObj))
+end
+function _count_unionall_free_parameters(TypeObj::DataType)
     count = 0
-    while typeof(TypeObj) === UnionAll
-        # in `T<:ConcreteType` we don't consider `T` as a free parameter
-        count += !isconcretetype(TypeObj.var.ub)
-        TypeObj = TypeObj.body
-    end
-    # The parameters might themselves be `UnionAll`
-    if TypeObj isa DataType
-        for param in TypeObj.parameters
-            count += _count_unionall_free_parameters(param)
+    for param in @show TypeObj.parameters
+        # only `TypeVars` can be free parameters, but in `T<:ConcreteType`
+        # don't consider `T` as a free parameter
+        if param isa TypeVar && !isconcretetype(param.ub)
+            count += 1
         end
+        # The parameters might themselves be `UnionAll`
+        count += _count_unionall_free_parameters(param)
     end
     return count
 end
@@ -232,7 +237,9 @@ function _count_type_expr_params(mod::Module, expr::Expr)
     count = 0
     if expr.head === :where
         expr = expr.args[1]
-        count = _count_type_expr_params(mod, expr)
+        count += _count_type_expr_params(mod, expr)
+    elseif expr.head == :<:
+        count += _count_type_expr_params(mod, expr.args[1])
     elseif expr.head == :curly
         for arg in Iterators.rest(expr.args, 1)
             count += _count_type_expr_params(mod, arg)
