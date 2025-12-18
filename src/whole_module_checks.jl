@@ -1,18 +1,20 @@
 function test_all_structs_have_fully_specified_fields(pkg::Module; verbose::Bool=false)
-    @testset "$(pkg)" verbose=verbose begin
-        dir = pkgdir(pkg)
-        @assert !isnothing(dir) "No file found for Module `$(pkg)`."
-        entrypoint = joinpath(dir, "src", "$(nameof(pkg)).jl")
-        @assert ispath(entrypoint) "Package $(pkg) source not found: $entrypoint"
-        test_file(pkg, entrypoint)
+    dir = pkgdir(pkg)
+    @assert !isnothing(dir) "No file found for Module `$(pkg)`."
+    entrypoint = joinpath(dir, "src", "$(nameof(pkg)).jl")
+    @assert ispath(entrypoint) "Package $(pkg) source not found: $entrypoint"
+    @testset "$(pkg).jl" verbose=verbose begin
+        test_all_structs_have_fully_specified_fields(pkg, entrypoint; verbose)
     end
 end
 
-function test_file(pkg::Module, filename::String)
+function test_all_structs_have_fully_specified_fields(
+    mod::Module, filename::AbstractString; verbose::Bool=false
+)
     # Parse the file and call handle_parsed_expression on each expression.
     contents = read(filename, String)
     walk_string(contents, filename) do parsed, loc
-        handle_parsed_expression(pkg, parsed, loc)
+        handle_parsed_expression(mod, parsed, loc; verbose)
     end
 end
 
@@ -38,28 +40,28 @@ function walk_string(mapexpr::Function, code::AbstractString, filename::Abstract
     end
 end
 
-handle_parsed_expression(::Module, x::Any, _loc) = nothing
-function handle_parsed_expression(pkg::Module, parsed::Expr, loc)
+handle_parsed_expression(::Module, x::Any, _loc; kw...) = nothing
+function handle_parsed_expression(mod::Module, parsed::Expr, loc; verbose::Bool=false)
     # @show loc
     if parsed.head == :struct
         # DO THE THING
         location = "$(loc.file):$(loc.line)"
-        test_all_fields_fully_specified(pkg, parsed; location)
+        test_all_fields_fully_specified(mod, parsed; location)
     elseif parsed.head == :call && parsed.args[1] == :include
         # Follow includes to more files
         new_file = joinpath(dirname(String(loc.file)), parsed.args[2])
-        return test_file(pkg, new_file)
+        return test_all_structs_have_fully_specified_fields(mod, new_file)
     elseif parsed.head == :module
         modname = parsed.args[2]
-        inner_mod = Core.eval(pkg, modname)
-        @testset "$(inner_mod)" begin
+        inner_mod = Core.eval(mod, modname)
+        @testset "$(inner_mod)" verbose=verbose begin
             for expr in parsed.args
-                handle_parsed_expression(inner_mod, expr, loc)
+                handle_parsed_expression(inner_mod, expr, loc; verbose)
             end
         end
     else
         for expr in parsed.args
-            handle_parsed_expression(pkg, expr, loc)
+            handle_parsed_expression(mod, expr, loc)
         end
     end
 end
