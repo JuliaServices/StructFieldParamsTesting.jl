@@ -1,7 +1,7 @@
 module StructFieldParamsTesting
 
-export test_all_structs_have_fully_specified_fields
-export test_all_fields_fully_specified, field_is_fully_specified
+export test_all_structs_have_fully_specified_fields, print_all_structs_have_fully_specified_fields
+export test_all_fields_fully_specified, field_is_fully_specified, print_all_fields_fully_specified
 
 using MacroTools: @capture
 using Markdown: Markdown

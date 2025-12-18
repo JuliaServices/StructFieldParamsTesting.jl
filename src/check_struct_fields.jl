@@ -21,6 +21,147 @@ function field_is_fully_specified(pkg::Module, struct_expr, field_name; location
             report_error = false, location = location)
 end
 
+function print_all_fields_fully_specified(pkg::Module, struct_expr; location = nothing)
+    (struct_name, T, fields_dict) = _extract_struct_field_types(pkg::Module, struct_expr)
+
+    # Extract field order from original struct expression
+    field_order = _extract_field_order(struct_expr)
+
+    # Check each field and collect unspecified ones
+    unspecified_fields = Dict{Symbol, Any}()
+    fully_specified_fields = Dict{Symbol, Any}()
+    corrected_fields = Dict{Symbol, Any}()
+
+    for (field_name, field_type_expr) in fields_dict
+        is_specified = check_field_type_fully_specified(
+            pkg, struct_name, field_name, T, field_type_expr,
+            report_error = false, location = location)
+
+        if is_specified
+            fully_specified_fields[field_name] = field_type_expr
+            corrected_fields[field_name] = field_type_expr
+        else
+            unspecified_fields[field_name] = field_type_expr
+            # Generate corrected type
+            try
+                TypeObj = Base.eval(pkg, quote
+                    $(field_type_expr) where {$(T...)}
+                end)
+                complete_type = single_unwrap_unionall(TypeObj)
+                corrected_fields[field_name] = complete_type
+            catch e
+                corrected_fields[field_name] = field_type_expr
+            end
+        end
+    end
+
+    # Print original struct definition
+    println("Original struct definition:")
+    if location !== nothing
+        printstyled("#= $location =#\n"; color=:light_black)
+    end
+    _print_struct_definition_colored(struct_name, T, fields_dict, field_order, struct_expr, unspecified_fields, :red)
+    println()
+
+    # Only show corrected version if there are issues
+    if !isempty(unspecified_fields)
+        println("Fully-specified version:")
+        _print_struct_definition_colored(struct_name, T, corrected_fields, field_order, struct_expr, unspecified_fields, :green)
+    end
+end
+
+function _extract_field_order(struct_expr)
+    @capture(
+        struct_expr,
+        struct name_{T__} <: S_ fields__ end | struct name_ <: S_ fields__ end |
+        struct name_{T__} fields__ end | struct name_ fields__ end |
+        mutable struct name_{T__} <: S_ fields__ end | mutable struct name_ <: S_ fields__ end |
+        mutable struct name_{T__} fields__ end | mutable struct name_ fields__ end
+    ) || error("Invalid struct expression: $(struct_expr)")
+
+    fields_split = split_field.(fields)
+    filter!(x -> x !== nothing, fields_split)
+    return [f[1] for f in fields_split]
+end
+
+function _print_struct_definition_colored(struct_name, T, fields_dict, field_order, original_expr, unspecified_fields, color)
+    # Determine if it's mutable by looking at the original expression
+    is_mutable = false
+    if original_expr isa Expr && original_expr.head == :struct && length(original_expr.args) >= 1
+        is_mutable = original_expr.args[1] isa Bool ? original_expr.args[1] : false
+    end
+
+    # Build struct definition string
+    prefix = is_mutable ? "mutable struct " : "struct "
+
+    # Handle type parameters
+    if isempty(T)
+        struct_header = "$prefix$struct_name"
+    else
+        struct_header = "$prefix$struct_name{$(join(T, ", "))}"
+    end
+
+    println(struct_header)
+
+    # Print fields in original order with color for changed fields
+    for field_name in field_order
+        field_type_expr = fields_dict[field_name]
+        field_line = if field_type_expr == Any
+            "    $field_name"
+        else
+            "    $field_name::$field_type_expr"
+        end
+
+        # Color the line if this field was unspecified
+        if field_name in keys(unspecified_fields)
+            if color == :red
+                printstyled(field_line, "\n"; color=:red)
+            elseif color == :green
+                printstyled(field_line, "\n"; color=:green)
+            else
+                println(field_line)
+            end
+        else
+            println(field_line)
+        end
+    end
+
+    println("end")
+end
+
+function _print_struct_definition(struct_name, T, fields_dict, field_order, original_expr)
+    # Determine if it's mutable by looking at the original expression
+    is_mutable = false
+    if original_expr isa Expr && original_expr.head == :struct && length(original_expr.args) >= 1
+        is_mutable = original_expr.args[1] isa Bool ? original_expr.args[1] : false
+    end
+
+    # Build struct definition string
+    prefix = is_mutable ? "mutable struct " : "struct "
+
+    # Handle type parameters
+    if isempty(T)
+        struct_header = "$prefix$struct_name"
+    else
+        struct_header = "$prefix$struct_name{$(join(T, ", "))}"
+    end
+
+    println(struct_header)
+
+    # Print fields in original order
+    for field_name in field_order
+        field_type_expr = fields_dict[field_name]
+        if field_type_expr == Any
+            println("    $field_name")
+        else
+            println("    $field_name::$field_type_expr")
+        end
+    end
+
+    println("end")
+end
+
+
 function _extract_struct_field_types(pkg::Module, struct_expr)
     @capture(
         struct_expr,
